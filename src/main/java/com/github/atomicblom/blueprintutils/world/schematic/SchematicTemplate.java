@@ -11,13 +11,12 @@ import net.minecraft.entity.EntityList;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTUtil;
+import net.minecraft.nbt.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ObjectIntIdentityMap;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.gen.structure.template.Template;
 import net.minecraft.world.gen.structure.template.Template.BlockInfo;
 import net.minecraft.world.gen.structure.template.Template.EntityInfo;
 import javax.annotation.Nullable;
@@ -37,7 +36,7 @@ public class SchematicTemplate extends SchematicFormat
         NBTTagList nbttaglist = compound.getTagList("size", 3);
         BlockPos size = new BlockPos(nbttaglist.getIntAt(0), nbttaglist.getIntAt(1), nbttaglist.getIntAt(2));
         String author = compound.getString("author");
-        BlockPallette blockPalette = new BlockPallette();
+        BlockPalette blockPalette = new BlockPalette();
         NBTTagList nbttaglist1 = compound.getTagList("palette", 10);
 
         for (int i = 0; i < nbttaglist1.tagCount(); ++i)
@@ -93,18 +92,85 @@ public class SchematicTemplate extends SchematicFormat
     }
 
     @Override
-    public boolean writeToNBT(NBTTagCompound tagCompound, ISchematic schematic)
+    public boolean writeToNBT(NBTTagCompound nbt, ISchematic schematic)
     {
-        return false;
+        BlockPalette palette = new BlockPalette();
+        NBTTagList blockTagList = new NBTTagList();
+
+        BlockPos.MutableBlockPos mutableBlockPos = new BlockPos.MutableBlockPos();
+
+        for (int x = 0; x < schematic.getWidth(); ++x) {
+            for (int y = 0; y < schematic.getHeight(); ++y) {
+                for (int z = 0; z < schematic.getLength(); ++z) {
+                    mutableBlockPos.setPos(x, y, z);
+                    NBTTagCompound blockTagCompound = new NBTTagCompound();
+
+                    final IBlockState blockState = schematic.getBlockState(mutableBlockPos);
+                    NBTTagCompound tileEntityTagCompound = null;
+                    if (blockState.getBlock().hasTileEntity(blockState)) {
+                        final TileEntity tileEntity = schematic.getTileEntity(mutableBlockPos);
+                        tileEntityTagCompound = new NBTTagCompound();
+                        tileEntity.writeToNBT(tileEntityTagCompound);
+                    }
+
+
+                    final BlockInfo blockInfo = new BlockInfo(mutableBlockPos.toImmutable(), blockState, tileEntityTagCompound);
+
+                    blockTagCompound.setTag("pos", this.writeInts(new int[] {blockInfo.pos.getX(), blockInfo.pos.getY(), blockInfo.pos.getZ()}));
+                    blockTagCompound.setInteger("state", palette.idFor(blockInfo.blockState));
+
+                    if (blockInfo.tileentityData != null)
+                    {
+                        blockTagCompound.setTag("nbt", blockInfo.tileentityData);
+                    }
+
+                    blockTagList.appendTag(blockTagCompound);
+                }
+            }
+        }
+
+        NBTTagList nbttaglist1 = new NBTTagList();
+
+        for (Entity entity : schematic.getEntities())
+        {
+            final EntityInfo entityInfo = new EntityInfo(entity.getPositionVector(), entity.getPosition(), entity.serializeNBT());
+
+            NBTTagCompound nbttagcompound1 = new NBTTagCompound();
+            nbttagcompound1.setTag("pos", this.writeDoubles(new double[] {entityInfo.pos.xCoord, entityInfo.pos.yCoord, entityInfo.pos.zCoord}));
+            nbttagcompound1.setTag("blockPos", this.writeInts(new int[] {entityInfo.blockPos.getX(), entityInfo.blockPos.getY(), entityInfo.blockPos.getZ()}));
+
+            if (entityInfo.entityData != null)
+            {
+                nbttagcompound1.setTag("nbt", entityInfo.entityData);
+            }
+
+            nbttaglist1.appendTag(nbttagcompound1);
+        }
+
+        NBTTagList nbttaglist2 = new NBTTagList();
+
+        for (IBlockState iblockstate : palette)
+        {
+            nbttaglist2.appendTag(NBTUtil.writeBlockState(new NBTTagCompound(), iblockstate));
+        }
+
+        nbt.setTag("palette", nbttaglist2);
+        nbt.setTag("blocks", blockTagList);
+        nbt.setTag("entities", nbttaglist1);
+        nbt.setTag("size", this.writeInts(new int[] {schematic.getWidth(), schematic.getHeight(), schematic.getLength()}));
+        nbt.setInteger("version", 1);
+        //nbt.setString("author", this.author);
+        nbt.setString("author", "?");
+        return true;
     }
 
-    static class BlockPallette implements Iterable<IBlockState>
+    static class BlockPalette implements Iterable<IBlockState>
     {
         public static final IBlockState DEFAULT_BLOCK_STATE = Blocks.AIR.getDefaultState();
         final ObjectIntIdentityMap<IBlockState> ids;
         private int lastId;
 
-        private BlockPallette()
+        private BlockPalette()
         {
             this.ids = new ObjectIntIdentityMap(16);
         }
@@ -138,5 +204,29 @@ public class SchematicTemplate extends SchematicFormat
         {
             this.ids.put(p_189956_1_, p_189956_2_);
         }
+    }
+
+    private NBTTagList writeInts(int... values)
+    {
+        NBTTagList nbttaglist = new NBTTagList();
+
+        for (int i : values)
+        {
+            nbttaglist.appendTag(new NBTTagInt(i));
+        }
+
+        return nbttaglist;
+    }
+
+    private NBTTagList writeDoubles(double... values)
+    {
+        NBTTagList nbttaglist = new NBTTagList();
+
+        for (double d0 : values)
+        {
+            nbttaglist.appendTag(new NBTTagDouble(d0));
+        }
+
+        return nbttaglist;
     }
 }

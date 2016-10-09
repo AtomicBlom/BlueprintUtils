@@ -71,13 +71,19 @@ public abstract class SchematicFormat {
 
             final NBTTagCompound tagCompound = new NBTTagCompound();
 
-            FORMATS.get(FORMAT_DEFAULT).writeToNBT(tagCompound, schematic);
+            final SchematicFormat schematicFormat = FORMATS.get(Names.NBT.FORMAT_TEMPLATE);
+            schematicFormat.writeToNBT(tagCompound, schematic);
 
             final DataOutputStream dataOutputStream = new DataOutputStream(new GZIPOutputStream(new FileOutputStream(file)));
 
-            try {
-                final Method writeEntry = NBTTagCompound.class.getMethod("writeEntry", String.class, NBTBase.class, DataOutput.class);
+            try
+            {
+                final Class<NBTTagCompound> nbtTagCompoundClass = NBTTagCompound.class;
+                final Method writeEntry = nbtTagCompoundClass.getDeclaredMethod("writeEntry", String.class, NBTBase.class, DataOutput.class);
+                writeEntry.setAccessible(true);
                 writeEntry.invoke(null, Names.NBT.ROOT, tagCompound, dataOutputStream);
+            } catch (Exception e) {
+                logger.error("wtf", e);
             } finally {
                 dataOutputStream.close();
             }

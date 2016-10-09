@@ -75,8 +75,6 @@ public class Schematic implements ISchematic {
         this.blocks[x][y][z] = (short) id;
         this.metadata[x][y][z] = (byte) meta;
 
-
-
         return true;
     }
 
