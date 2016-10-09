@@ -2,6 +2,7 @@ package com.github.atomicblom.blueprintutils.world.schematic;
 
 import com.github.atomicblom.blueprintutils.api.ISchematic;
 import com.github.atomicblom.blueprintutils.api.event.PreSchematicSaveEvent;
+import com.github.atomicblom.blueprintutils.api.event.UnknownBlockEvent;
 import com.github.atomicblom.blueprintutils.nbt.NBTHelper;
 import com.github.atomicblom.blueprintutils.reference.Names;
 import com.github.atomicblom.blueprintutils.world.storage.Schematic;
@@ -66,7 +67,14 @@ public class SchematicAlpha extends SchematicFormat {
             final NBTTagCompound mapping = tagCompound.getCompoundTag(Names.NBT.MAPPING_SCHEMATICA);
             final Set<String> names = mapping.getKeySet();
             for (final String name : names) {
-                oldToNew.put(mapping.getShort(name), (short) BLOCK_REGISTRY.getId(new ResourceLocation(name)));
+                final short worldBlockId;
+                if (!BLOCK_REGISTRY.containsKey(new ResourceLocation(name))) {
+                    worldBlockId = (short) BLOCK_REGISTRY.getId(new ResourceLocation("minecraft:air"));
+                } else
+                {
+                    worldBlockId = (short) BLOCK_REGISTRY.getId(new ResourceLocation(name));
+                }
+                oldToNew.put(mapping.getShort(name), worldBlockId);
             }
         }
 
@@ -153,7 +161,7 @@ public class SchematicAlpha extends SchematicFormat {
                     } else {
                         localBlocks[index] = -1;
                         if (!mappings.containsKey("null")) {
-                            mappings.put("null", (short) -1);
+                            mappings.put("null", Short.MAX_VALUE);
                         }
                     }
                 }

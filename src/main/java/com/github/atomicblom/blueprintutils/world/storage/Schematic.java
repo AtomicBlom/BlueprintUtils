@@ -37,7 +37,8 @@ public class Schematic implements ISchematic {
         this.palette = HashBiMap.create();
         this.usedBlockStates = Maps.newHashMap();
         palette.put(0, Blocks.AIR.getDefaultState());
-        usedBlockStates.put(0, new AtomicInteger(width * height * length));
+        usedBlockStates.put(paletteIndex, new AtomicInteger(width * height * length));
+        paletteIndex++;
 
         this.width = width;
         this.height = height;

@@ -3,9 +3,6 @@ package com.github.atomicblom.blueprintutils.api.event;
 import net.minecraft.block.Block;
 import net.minecraftforge.fml.common.registry.FMLControlledNamespacedRegistry;
 
-/**
- * Created by codew on 9/10/2016.
- */
 public class UnknownBlockEvent
 {
 
