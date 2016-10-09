@@ -1,7 +1,9 @@
 package com.github.atomicblom.blueprintutils.world.storage;
 
 import com.github.atomicblom.blueprintutils.api.ISchematic;
-import net.minecraft.block.Block;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Maps;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.EntityPlayer;
@@ -9,31 +11,33 @@ import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.fml.common.registry.FMLControlledNamespacedRegistry;
-import net.minecraftforge.fml.common.registry.GameData;
+import net.minecraft.util.math.BlockPos.MutableBlockPos;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Schematic implements ISchematic {
     private static final ItemStack DEFAULT_ICON = new ItemStack(Blocks.GRASS);
-    @SuppressWarnings("deprecation")
-    private static final FMLControlledNamespacedRegistry<Block> BLOCK_REGISTRY = GameData.getBlockRegistry();
 
     private ItemStack icon;
-    private final short[][][] blocks;
-    private final byte[][][] metadata;
+    private final int[][][] blockStates;
+    private final BiMap<Integer, IBlockState> palette;
+    private final Map<Integer, AtomicInteger> usedBlockStates;
     private final List<TileEntity> tileEntities = new ArrayList<TileEntity>();
     private final List<Entity> entities = new ArrayList<Entity>();
     private final int width;
     private final int height;
     private final int length;
 
+    private int paletteIndex = 0;
+
     public Schematic(final ItemStack icon, final int width, final int height, final int length) {
         this.icon = icon;
-        this.blocks = new short[width][height][length];
-        this.metadata = new byte[width][height][length];
+        this.blockStates = new int[width][height][length];
+        this.palette = HashBiMap.create();
+        this.usedBlockStates = Maps.newHashMap();
+        palette.put(0, Blocks.AIR.getDefaultState());
+        usedBlockStates.put(0, new AtomicInteger(width * height * length));
 
         this.width = width;
         this.height = height;
@@ -49,10 +53,33 @@ public class Schematic implements ISchematic {
         final int x = pos.getX();
         final int y = pos.getY();
         final int z = pos.getZ();
-        final Block block = BLOCK_REGISTRY.getObjectById(this.blocks[x][y][z]);
 
-        //noinspection deprecation
-        return block.getStateFromMeta(this.metadata[x][y][z]);
+        final int i = blockStates[x][y][z];
+
+        if (!palette.containsKey(i)) {
+            return Blocks.AIR.getDefaultState();
+        }
+
+        return palette.get(i);
+    }
+
+    @Override
+    public IBlockState getBlockStateUnsafe(final BlockPos pos) {
+        if (!isValid(pos)) {
+            return null;
+        }
+
+        final int x = pos.getX();
+        final int y = pos.getY();
+        final int z = pos.getZ();
+
+        final int i = blockStates[x][y][z];
+
+        if (!palette.containsKey(i)) {
+            return null;
+        }
+
+        return palette.get(i);
     }
 
     @Override
@@ -61,19 +88,39 @@ public class Schematic implements ISchematic {
             return false;
         }
 
-        final Block block = blockState.getBlock();
-        final int id = BLOCK_REGISTRY.getId(block);
-        if (id == -1) {
-            return false;
-        }
-
-        final int meta = block.getMetaFromState(blockState);
         final int x = pos.getX();
         final int y = pos.getY();
         final int z = pos.getZ();
 
-        this.blocks[x][y][z] = (short) id;
-        this.metadata[x][y][z] = (byte) meta;
+        final int previousState = blockStates[x][y][z];
+        final AtomicInteger previousBlockUsed = this.usedBlockStates.get(previousState);
+        if (previousBlockUsed != null) {
+            final int blocksInSchematic = previousBlockUsed.decrementAndGet();
+            if (blocksInSchematic == 0) {
+                usedBlockStates.remove(previousState);
+            }
+        }
+
+        final BiMap<IBlockState, Integer> inverse = palette.inverse();
+        final int paletteId;
+        if (inverse.containsKey(blockState))
+        {
+            paletteId = inverse.get(blockState);
+        } else
+        {
+            paletteId = paletteIndex;
+            paletteIndex++;
+            palette.put(paletteId, blockState);
+        }
+
+        this.blockStates[x][y][z] = paletteId;
+
+        AtomicInteger newBlockUsed = this.usedBlockStates.get(paletteId);
+        if (newBlockUsed == null) {
+            newBlockUsed = new AtomicInteger();
+            usedBlockStates.put(paletteId, newBlockUsed);
+        }
+        newBlockUsed.incrementAndGet();
 
         return true;
     }
@@ -90,7 +137,7 @@ public class Schematic implements ISchematic {
     }
 
     @Override
-    public List<TileEntity> getTileEntities() {
+    public Iterable<TileEntity> getTileEntities() {
         return this.tileEntities;
     }
 
@@ -152,6 +199,50 @@ public class Schematic implements ISchematic {
                 iterator.remove();
             }
         }
+    }
+
+    public boolean remapBlockState(IBlockState oldBlockState, IBlockState newBlockState) {
+        final BiMap<IBlockState, Integer> palette = this.palette.inverse();
+        if (!palette.containsKey(oldBlockState)) {
+            return false;
+        }
+        final Integer oldIndex = palette.get(oldBlockState);
+
+        this.palette.remove(oldIndex);
+        final MutableBlockPos pos = new MutableBlockPos();
+        if (palette.containsKey(newBlockState)) {
+            final Integer newIndex = palette.get(oldBlockState);
+            for (int x = 0; x < width; ++x) {
+                for (int y = 0; y < height; ++y) {
+                    for (int z = 0; z < length; ++z) {
+                        pos.setPos(x, y, z);
+                        if (blockStates[x][y][z] == oldIndex) {
+                            blockStates[x][y][z] = newIndex;
+                        }
+                    }
+                }
+            }
+
+            final AtomicInteger atomicInteger = usedBlockStates.get(newIndex);
+            atomicInteger.addAndGet(usedBlockStates.get(oldIndex).get());
+            usedBlockStates.remove(oldIndex);
+        } else {
+            this.palette.put(oldIndex, newBlockState);
+        }
+        return true;
+    }
+
+    public boolean removeBlockState(IBlockState blockState) {
+        final BiMap<IBlockState, Integer> palette = this.palette.inverse();
+        if (!palette.containsKey(blockState)) {
+            return false;
+        }
+
+        final Integer oldIndex = palette.get(blockState);
+        this.palette.remove(oldIndex);
+        this.usedBlockStates.remove(oldIndex);
+
+        return true;
     }
 
     @Override

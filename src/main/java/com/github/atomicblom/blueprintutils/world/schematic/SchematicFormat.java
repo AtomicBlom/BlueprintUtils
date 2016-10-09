@@ -1,5 +1,6 @@
 package com.github.atomicblom.blueprintutils.world.schematic;
 
+import com.github.atomicblom.blueprintutils.api.event.PreSchematicSaveEvent;
 import com.github.atomicblom.blueprintutils.reference.Names;
 import com.github.atomicblom.blueprintutils.api.ISchematic;
 import com.github.atomicblom.blueprintutils.api.event.PostSchematicCaptureEvent;
@@ -66,12 +67,12 @@ public abstract class SchematicFormat {
     public static boolean writeToFile(final File file, final ISchematic schematic) {
         final Logger logger = LogManager.getLogger("SchematicWriter");
         try {
-            final PostSchematicCaptureEvent event = new PostSchematicCaptureEvent(schematic);
+            final PreSchematicSaveEvent event = new PreSchematicSaveEvent(schematic);
             MinecraftForge.EVENT_BUS.post(event);
 
             final NBTTagCompound tagCompound = new NBTTagCompound();
 
-            final SchematicFormat schematicFormat = FORMATS.get(Names.NBT.FORMAT_TEMPLATE);
+            final SchematicFormat schematicFormat = FORMATS.get(Names.NBT.FORMAT_ALPHA);
             schematicFormat.writeToNBT(tagCompound, schematic);
 
             final DataOutputStream dataOutputStream = new DataOutputStream(new GZIPOutputStream(new FileOutputStream(file)));

@@ -1,10 +1,12 @@
 package com.github.atomicblom.blueprintutils.api.event;
 
 import com.github.atomicblom.blueprintutils.api.ISchematic;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraftforge.fml.common.eventhandler.Event;
 
-import java.util.Map;
+import java.util.List;
+import java.util.Set;
 
 /**
  * This event is fired after the schematic has been Captured, but before it is serialized to the schematic format.
@@ -12,7 +14,6 @@ import java.util.Map;
  * Register to this event using MinecraftForge.EVENT_BUS
  */
 public class PreSchematicSaveEvent extends Event {
-    private final Map<String, Short> mappings;
 
     /**
      * The schematic that will be saved.
@@ -24,14 +25,8 @@ public class PreSchematicSaveEvent extends Event {
      */
     public final NBTTagCompound extendedMetadata;
 
-    @Deprecated
-    public PreSchematicSaveEvent(final Map<String, Short> mappings) {
-        this(null, mappings);
-    }
-
-    public PreSchematicSaveEvent(final ISchematic schematic, final Map<String, Short> mappings) {
+    public PreSchematicSaveEvent(final ISchematic schematic) {
         this.schematic = schematic;
-        this.mappings = mappings;
         this.extendedMetadata = new NBTTagCompound();
     }
 
@@ -42,28 +37,22 @@ public class PreSchematicSaveEvent extends Event {
      * Attempting to remap two blocks to the same name will result in a DuplicateMappingException. If you wish for this
      * type of collision, you can work around it by merging the two sets of block into a single BlockType in the
      * PostSchematicCaptureEvent.
-     * @param oldName The old name of the block mapping.
-     * @param newName The new name of the block Mapping.
+     * @param oldState The old name of the block mapping.
+     * @param newState The new name of the block Mapping.
      * @return true if a mapping was replaced.
-     * @throws DuplicateMappingException
      */
-    public boolean replaceMapping(final String oldName, final String newName) throws DuplicateMappingException {
-        if (this.mappings.containsKey(newName)) {
-            throw new DuplicateMappingException(
-                    String.format(
-                            "Could not replace block type %s, the block type %s already exists in the schematic.",
-                            oldName, newName
-                    )
-            );
-        }
+    public boolean replaceMapping(final IBlockState oldState, final IBlockState newState) {
+        return schematic.remapBlockState(oldState, newState);
+    }
 
-        final Short id = this.mappings.get(oldName);
-        if (id != null) {
-            this.mappings.remove(oldName);
-            this.mappings.put(newName, id);
-            return true;
-        }
-
-        return false;
+    /**
+     * Marks a blockState as not present in a schematic. Use {see getBlockStateUnsafe}
+     * to determine which blocks are effected
+     *
+     * @param blockState
+     * @return
+     */
+    public boolean removeMapping(final IBlockState blockState) {
+        return schematic.removeBlockState(blockState);
     }
 }

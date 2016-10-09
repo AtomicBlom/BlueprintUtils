@@ -16,8 +16,16 @@ public interface ISchematic {
      * @param pos the location in world space.
      * @return the block at the requested location.
      */
-
     IBlockState getBlockState(BlockPos pos);
+
+    /**
+     * Gets a block state at a given location within the schematic. Requesting a block state outside of those bounds
+     * returns the default block state for air.
+     *
+     * @param pos the location in world space.
+     * @return the block at the requested location.
+     */
+    IBlockState getBlockStateUnsafe(BlockPos pos);
 
     /**
      * Sets the block state at the given location. Attempting to set a block state outside of the schematic
@@ -42,7 +50,7 @@ public interface ISchematic {
      *
      * @return all tile entities.
      */
-    List<TileEntity> getTileEntities();
+    Iterable<TileEntity> getTileEntities();
 
     /**
      * Add or replace a tile entity to a block at the requested location. Does nothing if the location is out of bounds.
@@ -114,4 +122,22 @@ public interface ISchematic {
      * @return the schematic height
      */
     int getHeight();
+
+    /**
+     * Change all the blockstates of one type to that of another.
+     *
+     * @param oldBlockState
+     * @param newBlockState
+     * @return true if any blocks were replaced.
+     */
+    boolean remapBlockState(IBlockState oldBlockState, IBlockState newBlockState);
+
+    /**
+     * Marks a blockState as not present in a schematic. Use {see getBlockStateUnsafe}
+     * to determine which blocks are effected
+     *
+     * @param blockState
+     * @return true if the blockstate was successfully removed.
+     */
+    boolean removeBlockState(IBlockState blockState);
 }

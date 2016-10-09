@@ -15,6 +15,7 @@ import net.minecraft.nbt.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ObjectIntIdentityMap;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.BlockPos.MutableBlockPos;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.gen.structure.template.Template;
 import net.minecraft.world.gen.structure.template.Template.BlockInfo;
@@ -97,7 +98,7 @@ public class SchematicTemplate extends SchematicFormat
         BlockPalette palette = new BlockPalette();
         NBTTagList blockTagList = new NBTTagList();
 
-        BlockPos.MutableBlockPos mutableBlockPos = new BlockPos.MutableBlockPos();
+        MutableBlockPos mutableBlockPos = new MutableBlockPos();
 
         for (int x = 0; x < schematic.getWidth(); ++x) {
             for (int y = 0; y < schematic.getHeight(); ++y) {
@@ -105,7 +106,11 @@ public class SchematicTemplate extends SchematicFormat
                     mutableBlockPos.setPos(x, y, z);
                     NBTTagCompound blockTagCompound = new NBTTagCompound();
 
-                    final IBlockState blockState = schematic.getBlockState(mutableBlockPos);
+                    final IBlockState blockState = schematic.getBlockStateUnsafe(mutableBlockPos);
+                    if (blockState == null) {
+                        continue;
+                    }
+
                     NBTTagCompound tileEntityTagCompound = null;
                     if (blockState.getBlock().hasTileEntity(blockState)) {
                         final TileEntity tileEntity = schematic.getTileEntity(mutableBlockPos);
@@ -113,10 +118,9 @@ public class SchematicTemplate extends SchematicFormat
                         tileEntity.writeToNBT(tileEntityTagCompound);
                     }
 
-
                     final BlockInfo blockInfo = new BlockInfo(mutableBlockPos.toImmutable(), blockState, tileEntityTagCompound);
 
-                    blockTagCompound.setTag("pos", this.writeInts(new int[] {blockInfo.pos.getX(), blockInfo.pos.getY(), blockInfo.pos.getZ()}));
+                    blockTagCompound.setTag("pos", writeInts(new int[] {blockInfo.pos.getX(), blockInfo.pos.getY(), blockInfo.pos.getZ()}));
                     blockTagCompound.setInteger("state", palette.idFor(blockInfo.blockState));
 
                     if (blockInfo.tileentityData != null)
